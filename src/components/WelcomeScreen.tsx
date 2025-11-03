@@ -21,7 +21,10 @@ export default function WelcomeScreen() {
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
         <Card className="w-[400px] max-w-full shadow-xl rounded-2xl p-6">
           <CardContent className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-center mb-2">Team Digital Twin</h1>
+            <h1 className="text-2xl font-bold text-center mb-2">
+              <span className="block">Software Development Team</span>
+              <span className="block">Digital Twin Simulation</span>
+            </h1>
             <form onSubmit={onSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="text-sm font-medium">Team ID</label>
