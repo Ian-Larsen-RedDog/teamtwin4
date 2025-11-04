@@ -163,7 +163,7 @@ export default function WorkflowTemplateSetup({
           ) : null}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6">
           {TEMPLATE_DEFINITIONS.map(template => {
             const tasks = templates[template.key];
             return (
