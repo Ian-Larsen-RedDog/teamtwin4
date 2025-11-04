@@ -10,11 +10,14 @@ import TeamSetupScreen, {
   type StaffMember,
   normalizeTeamSetupData,
 } from "@/components/TeamSetupScreen";
+import WorkflowTemplateSetup from "@/components/WorkflowTemplateSetup";
 
 export default function WelcomeScreen() {
   const [teamId, setTeamId] = React.useState("");
   const [teamName, setTeamName] = React.useState("");
-  const [showSetup, setShowSetup] = React.useState(false);
+  const [stage, setStage] = React.useState<
+    "welcome" | "team-setup" | "workflow-setup"
+  >("welcome");
   const [capabilities, setCapabilities] = React.useState<Capability[]>([
     { id: "default-capability", code: "C1", description: "Capability 1" },
   ]);
@@ -31,7 +34,7 @@ export default function WelcomeScreen() {
   const isValid = teamId.trim() && teamName.trim();
 
   React.useEffect(() => {
-    if (!showSetup || !teamId || typeof window === "undefined") {
+    if (stage !== "team-setup" || !teamId || typeof window === "undefined") {
       return;
     }
 
@@ -52,24 +55,32 @@ export default function WelcomeScreen() {
     } catch (error) {
       console.error("Unable to restore saved team setup", error);
     }
-  }, [showSetup, teamId]);
+  }, [stage, teamId]);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid) return;
-    setShowSetup(true);
+    setStage("team-setup");
   }
 
   const handleContinue = React.useCallback(() => {
+    setStage("workflow-setup");
+  }, []);
+
+  const handleBackToTeamSetup = React.useCallback(() => {
+    setStage("team-setup");
+  }, []);
+
+  const handleFinishWorkflow = React.useCallback(() => {
     if (typeof window !== "undefined") {
       window.close();
     }
-    setShowSetup(false);
+    setStage("welcome");
   }, []);
 
   return (
     <AnimatePresence mode="wait">
-      {showSetup ? (
+      {stage === "team-setup" ? (
         <motion.div
           key="team-setup"
           initial={{ opacity: 0, y: 30 }}
@@ -85,6 +96,21 @@ export default function WelcomeScreen() {
             staffMembers={staffMembers}
             setStaffMembers={setStaffMembers}
             onContinue={handleContinue}
+          />
+        </motion.div>
+      ) : stage === "workflow-setup" ? (
+        <motion.div
+          key="workflow-setup"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -30 }}
+          transition={{ duration: 0.4 }}
+        >
+          <WorkflowTemplateSetup
+            teamName={teamName}
+            capabilities={capabilities}
+            onBack={handleBackToTeamSetup}
+            onFinish={handleFinishWorkflow}
           />
         </motion.div>
       ) : (
