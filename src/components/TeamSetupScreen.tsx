@@ -15,6 +15,7 @@ export type StaffMember = {
   id: string;
   code: string;
   name: string;
+  capacity: number;
   capabilityIds: string[];
 };
 
@@ -71,10 +72,17 @@ export function normalizeTeamSetupData(raw: unknown): TeamSetupData | null {
       ? member.id.trim()
       : generateId();
 
+    const rawCapacity =
+      typeof member?.capacity === "number" && Number.isFinite(member.capacity)
+        ? member.capacity
+        : 1;
+    const normalizedCapacity = Math.min(Math.max(rawCapacity, 0.5), 1.5);
+
     return {
       id,
       code: typeof member?.code === "string" ? member.code : "",
       name: typeof member?.name === "string" ? member.name : "",
+      capacity: normalizedCapacity,
       capabilityIds: Array.isArray(member?.capabilityIds)
         ? member.capabilityIds.filter(
             capabilityId => typeof capabilityId === "string" && validCapabilityIds.has(capabilityId)
@@ -192,9 +200,36 @@ export default function TeamSetupScreen({
       id: generateId(),
       code: nextCode,
       name: `Staff ${nextCode.replace(/\D/g, "") || ""}`.trim(),
+      capacity: 1,
       capabilityIds: [],
     };
     setStaffMembers(prev => [...prev, newMember]);
+  };
+
+  const handleStaffCapacityChange = (staffId: string, rawValue: string) => {
+    const numericValue = Number(rawValue);
+
+    setStaffMembers(prev =>
+      prev.map(member => {
+        if (member.id !== staffId) {
+          return member;
+        }
+
+        if (rawValue.trim() === "") {
+          return { ...member, capacity: 1 };
+        }
+
+        if (Number.isNaN(numericValue)) {
+          return { ...member, capacity: 1 };
+        }
+
+        const normalized = Math.min(Math.max(numericValue / 100, 0.5), 1.5);
+        return {
+          ...member,
+          capacity: Math.round(normalized * 100) / 100,
+        };
+      })
+    );
   };
 
   const toggleStaffCapability = (staffId: string, capabilityId: string) => {
@@ -440,6 +475,9 @@ export default function TeamSetupScreen({
                     <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                       Staff Name
                     </th>
+                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
+                      Capacity (%)
+                    </th>
                     {capabilities.map(capability => (
                       <th
                         key={capability.id}
@@ -465,7 +503,7 @@ export default function TeamSetupScreen({
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-sm text-gray-500"
-                        colSpan={capabilities.length + 3}
+                        colSpan={capabilities.length + 4}
                       >
                         No staff members added yet.
                       </td>
@@ -497,6 +535,19 @@ export default function TeamSetupScreen({
                               )
                             }
                             placeholder="Staff name"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={50}
+                            max={150}
+                            step={5}
+                            value={Math.round(member.capacity * 100)}
+                            onChange={event =>
+                              handleStaffCapacityChange(member.id, event.target.value)
+                            }
+                            aria-label={`${member.name || member.code} capacity in percent`}
                           />
                         </td>
                         {capabilities.map(capability => {
