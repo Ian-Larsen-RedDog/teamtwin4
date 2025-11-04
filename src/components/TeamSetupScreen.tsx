@@ -18,25 +18,114 @@ export type StaffMember = {
   capabilityIds: string[];
 };
 
+export type TeamSetupData = {
+  capabilities: Capability[];
+  staffMembers: StaffMember[];
+};
+
 interface TeamSetupScreenProps {
   teamName: string;
+  teamCode: string;
   capabilities: Capability[];
   setCapabilities: React.Dispatch<React.SetStateAction<Capability[]>>;
   staffMembers: StaffMember[];
   setStaffMembers: React.Dispatch<React.SetStateAction<StaffMember[]>>;
+  onContinue?: () => void;
 }
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+export function normalizeTeamSetupData(raw: unknown): TeamSetupData | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const maybeData = raw as Partial<TeamSetupData> & {
+    capabilities?: unknown;
+    staffMembers?: unknown;
+  };
+
+  if (!Array.isArray(maybeData.capabilities) || !Array.isArray(maybeData.staffMembers)) {
+    return null;
+  }
+
+  const capabilities: Capability[] = maybeData.capabilities.map(rawCapability => {
+    const capability = rawCapability as Partial<Capability> | undefined;
+    const id = capability?.id && typeof capability.id === "string" && capability.id.trim()
+      ? capability.id.trim()
+      : generateId();
+    return {
+      id,
+      code: typeof capability?.code === "string" ? capability.code : "",
+      description: typeof capability?.description === "string" ? capability.description : "",
+    } as Capability;
+  });
+
+  const validCapabilityIds = new Set(capabilities.map(capability => capability.id));
+
+  const staffMembers: StaffMember[] = maybeData.staffMembers.map(rawMember => {
+    const member = rawMember as Partial<StaffMember> | undefined;
+    const id = member?.id && typeof member.id === "string" && member.id.trim()
+      ? member.id.trim()
+      : generateId();
+
+    return {
+      id,
+      code: typeof member?.code === "string" ? member.code : "",
+      name: typeof member?.name === "string" ? member.name : "",
+      capabilityIds: Array.isArray(member?.capabilityIds)
+        ? member.capabilityIds.filter(
+            capabilityId => typeof capabilityId === "string" && validCapabilityIds.has(capabilityId)
+          )
+        : [],
+    } as StaffMember;
+  });
+
+  return { capabilities, staffMembers } as TeamSetupData;
+}
+
 export default function TeamSetupScreen({
   teamName,
+  teamCode,
   capabilities,
   setCapabilities,
   staffMembers,
   setStaffMembers,
+  onContinue,
 }: TeamSetupScreenProps) {
+  const [feedback, setFeedback] = React.useState<
+    | { type: "success" | "error"; message: string }
+    | null
+  >(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const sanitizedTeamCode = React.useMemo(() => {
+    const base = teamCode?.trim() || teamName?.trim() || "team";
+    return base.replace(/[^a-z0-9_-]/gi, "_");
+  }, [teamCode, teamName]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !teamCode) {
+      return;
+    }
+
+    const payload = JSON.stringify(
+      {
+        teamCode,
+        teamName,
+        capabilities,
+        staffMembers,
+        savedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    );
+
+    window.localStorage.setItem(`team-setup-${teamCode}`, payload);
+  }, [capabilities, staffMembers, teamCode, teamName]);
+
   const getNextCapabilityCode = React.useCallback(() => {
     const numericValues = capabilities
       .map(cap => parseInt(cap.code.replace(/\D/g, ""), 10))
@@ -123,6 +212,78 @@ export default function TeamSetupScreen({
     );
   };
 
+  const handleSaveTeam = () => {
+    try {
+      const payload = {
+        teamCode,
+        teamName,
+        capabilities,
+        staffMembers,
+        savedAt: new Date().toISOString(),
+      };
+
+      const fileName = `${sanitizedTeamCode || "team"}_Team_Setup.json`;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      setFeedback({ type: "success", message: `Team setup saved as ${fileName}.` });
+    } catch (error) {
+      console.error("Failed to save team setup", error);
+      setFeedback({ type: "error", message: "Unable to save the team setup." });
+    }
+  };
+
+  const handleLoadTeamClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleLoadTeam: React.ChangeEventHandler<HTMLInputElement> = event => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const normalized = normalizeTeamSetupData(parsed);
+
+        if (!normalized) {
+          throw new Error("Invalid team setup file structure");
+        }
+
+        setCapabilities(normalized.capabilities);
+        setStaffMembers(normalized.staffMembers);
+        setFeedback({ type: "success", message: `Team setup loaded from ${file.name}.` });
+      } catch (error) {
+        console.error("Failed to load team setup", error);
+        setFeedback({
+          type: "error",
+          message: "Unable to load the selected team setup file.",
+        });
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleContinue = () => {
+    if (onContinue) {
+      onContinue();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -134,6 +295,41 @@ export default function TeamSetupScreen({
             Configure team capabilities and assign them to each staff member.
           </p>
         </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={handleLoadTeamClick}>
+              Load Team
+            </Button>
+            <Button type="button" variant="outline" onClick={handleSaveTeam}>
+              Save Team
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={handleLoadTeam}
+            />
+          </div>
+          <Button type="button" variant="default" onClick={handleContinue}>
+            Continue
+          </Button>
+        </div>
+
+        {feedback ? (
+          <div
+            className={`rounded-md border px-4 py-2 text-sm ${
+              feedback.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {feedback.message}
+          </div>
+        ) : null}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">

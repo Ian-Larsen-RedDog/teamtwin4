@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TeamSetupScreen, {
   type Capability,
   type StaffMember,
+  normalizeTeamSetupData,
 } from "@/components/TeamSetupScreen";
 
 export default function WelcomeScreen() {
@@ -23,11 +24,42 @@ export default function WelcomeScreen() {
 
   const isValid = teamId.trim() && teamName.trim();
 
+  React.useEffect(() => {
+    if (!showSetup || !teamId || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const saved = window.localStorage.getItem(`team-setup-${teamId}`);
+      if (!saved) {
+        return;
+      }
+
+      const parsed = JSON.parse(saved);
+      const normalized = normalizeTeamSetupData(parsed);
+      if (!normalized) {
+        return;
+      }
+
+      setCapabilities(normalized.capabilities);
+      setStaffMembers(normalized.staffMembers);
+    } catch (error) {
+      console.error("Unable to restore saved team setup", error);
+    }
+  }, [showSetup, teamId]);
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid) return;
     setShowSetup(true);
   }
+
+  const handleContinue = React.useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.close();
+    }
+    setShowSetup(false);
+  }, []);
 
   return (
     <AnimatePresence mode="wait">
@@ -41,10 +73,12 @@ export default function WelcomeScreen() {
         >
           <TeamSetupScreen
             teamName={teamName}
+            teamCode={teamId}
             capabilities={capabilities}
             setCapabilities={setCapabilities}
             staffMembers={staffMembers}
             setStaffMembers={setStaffMembers}
+            onContinue={handleContinue}
           />
         </motion.div>
       ) : (
