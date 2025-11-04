@@ -19,7 +19,13 @@ export default function WelcomeScreen() {
     { id: "default-capability", code: "C1", description: "Capability 1" },
   ]);
   const [staffMembers, setStaffMembers] = React.useState<StaffMember[]>([
-    { id: "default-staff", code: "S1", name: "Staff one", capabilityIds: [] },
+    {
+      id: "default-staff",
+      code: "S1",
+      name: "Staff one",
+      capacity: 1,
+      capabilityIds: [],
+    },
   ]);
 
   const isValid = teamId.trim() && teamName.trim();
