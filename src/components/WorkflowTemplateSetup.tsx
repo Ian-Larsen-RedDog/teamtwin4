@@ -25,6 +25,7 @@ type TemplateTask = {
 
 interface WorkflowTemplateSetupProps {
   teamName: string;
+  teamCode?: string;
   capabilities: Capability[];
   onBack?: () => void;
   onFinish?: () => void;
@@ -43,8 +44,43 @@ function normalizeSequence(tasks: TemplateTask[]): TemplateTask[] {
     .sort((a, b) => a.seqNumber - b.seqNumber);
 }
 
+function sanitizeTasks(input: unknown): TemplateTask[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  const sanitized = input
+    .map(item => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const candidate = item as Partial<TemplateTask>;
+      return {
+        id:
+          typeof candidate.id === "string" && candidate.id.trim().length > 0
+            ? candidate.id
+            : generateId(),
+        seqNumber:
+          typeof candidate.seqNumber === "number" ? candidate.seqNumber : 0,
+        task: typeof candidate.task === "string" ? candidate.task : "",
+        estimate:
+          typeof candidate.estimate === "string" ? candidate.estimate : "",
+        capabilityId:
+          typeof candidate.capabilityId === "string"
+            ? candidate.capabilityId
+            : "",
+      } satisfies TemplateTask;
+    })
+    .filter((task): task is TemplateTask => task !== null)
+    .sort((a, b) => a.seqNumber - b.seqNumber);
+
+  return normalizeSequence(sanitized);
+}
+
 export default function WorkflowTemplateSetup({
   teamName,
+  teamCode,
   capabilities,
   onBack,
   onFinish,
@@ -55,7 +91,89 @@ export default function WorkflowTemplateSetup({
     incident: [],
   });
 
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
   const hasCapabilities = capabilities.length > 0;
+
+  const handleSaveTemplates = React.useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const filenameBase = (teamCode || teamName || "team").trim() || "team";
+    const payload = {
+      teamName,
+      teamCode,
+      templates,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenameBase}_Template_Setup.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [teamCode, teamName, templates]);
+
+  const handleLoadTemplatesFromFile = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const text = typeof reader.result === "string" ? reader.result : "";
+          if (!text) {
+            return;
+          }
+
+          const parsed = JSON.parse(text) as unknown;
+          const rawTemplates =
+            parsed && typeof parsed === "object" && "templates" in parsed
+              ? (parsed as { templates: Record<string, unknown> }).templates
+              : (parsed as Record<string, unknown> | null);
+
+          const templateSource: Record<string, unknown> =
+            rawTemplates && typeof rawTemplates === "object"
+              ? (rawTemplates as Record<string, unknown>)
+              : {};
+
+          const next: Record<TemplateKey, TemplateTask[]> = TEMPLATE_DEFINITIONS.reduce(
+            (acc, definition) => {
+              const raw = templateSource[definition.key];
+              acc[definition.key] = sanitizeTasks(raw);
+              return acc;
+            },
+            {
+              enhancement: [] as TemplateTask[],
+              defect: [] as TemplateTask[],
+              incident: [] as TemplateTask[],
+            }
+          );
+
+          setTemplates(next);
+        } catch (error) {
+          console.error("Unable to load workflow templates", error);
+        } finally {
+          event.target.value = "";
+        }
+      };
+      reader.readAsText(file);
+    },
+    []
+  );
+
+  const handleLoadButtonClick = React.useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const handleAddTask = (templateKey: TemplateKey) => {
     setTemplates(prev => {
@@ -156,12 +274,26 @@ export default function WorkflowTemplateSetup({
               Back to Team Setup
             </Button>
           ) : null}
+          <Button type="button" variant="secondary" onClick={handleSaveTemplates}>
+            Save Templates
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleLoadButtonClick}>
+            Load Templates
+          </Button>
           {onFinish ? (
             <Button type="button" onClick={onFinish}>
               Finish
             </Button>
           ) : null}
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={handleLoadTemplatesFromFile}
+        />
 
         <div className="grid grid-cols-1 gap-6">
           {TEMPLATE_DEFINITIONS.map(template => {

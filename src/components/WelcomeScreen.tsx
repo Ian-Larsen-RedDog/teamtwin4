@@ -108,6 +108,7 @@ export default function WelcomeScreen() {
         >
           <WorkflowTemplateSetup
             teamName={teamName}
+            teamCode={teamId}
             capabilities={capabilities}
             onBack={handleBackToTeamSetup}
             onFinish={handleFinishWorkflow}
