@@ -1,44 +1,94 @@
 "use client";
+
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import TeamSetupScreen, {
+  type Capability,
+  type StaffMember,
+} from "@/components/TeamSetupScreen";
 
 export default function WelcomeScreen() {
   const [teamId, setTeamId] = React.useState("");
   const [teamName, setTeamName] = React.useState("");
+  const [showSetup, setShowSetup] = React.useState(false);
+  const [capabilities, setCapabilities] = React.useState<Capability[]>([
+    { id: "default-capability", code: "C1", description: "Capability 1" },
+  ]);
+  const [staffMembers, setStaffMembers] = React.useState<StaffMember[]>([
+    { id: "default-staff", code: "S1", name: "Staff one", capabilityIds: [] },
+  ]);
+
   const isValid = teamId.trim() && teamName.trim();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid) return;
-    console.log({ teamId, teamName }); // replace with server action/API later
+    setShowSetup(true);
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-        <Card className="w-[400px] max-w-full shadow-xl rounded-2xl p-6">
-          <CardContent className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-center mb-2">
-              <span className="block">Software Development Team</span>
-              <span className="block">Digital Twin Simulation</span>
-            </h1>
-            <form onSubmit={onSubmit} className="flex flex-col gap-4">
-              <div>
-                <label className="text-sm font-medium">Team ID</label>
-                <Input value={teamId} onChange={e => setTeamId(e.target.value)} placeholder="Enter your Team ID" className="mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Team Name</label>
-                <Input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="Enter your Team Name" className="mt-1" />
-              </div>
-              <Button className="mt-2 w-full" type="submit" disabled={!isValid}>Continue</Button>
-            </form>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
+    <AnimatePresence mode="wait">
+      {showSetup ? (
+        <motion.div
+          key="team-setup"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -30 }}
+          transition={{ duration: 0.4 }}
+        >
+          <TeamSetupScreen
+            teamName={teamName}
+            capabilities={capabilities}
+            setCapabilities={setCapabilities}
+            staffMembers={staffMembers}
+            setStaffMembers={setStaffMembers}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="welcome"
+          className="flex min-h-screen items-center justify-center bg-gray-50 p-4"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -30 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Card className="w-[400px] max-w-full rounded-2xl p-6 shadow-xl">
+            <CardContent className="flex flex-col gap-4">
+              <h1 className="mb-2 text-center text-2xl font-bold">
+                <span className="block">Software Development Team</span>
+                <span className="block">Digital Twin Simulation</span>
+              </h1>
+              <form onSubmit={onSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm font-medium">Team ID</label>
+                  <Input
+                    value={teamId}
+                    onChange={e => setTeamId(e.target.value)}
+                    placeholder="Enter your Team ID"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Team Name</label>
+                  <Input
+                    value={teamName}
+                    onChange={e => setTeamName(e.target.value)}
+                    placeholder="Enter your Team Name"
+                    className="mt-1"
+                  />
+                </div>
+                <Button className="mt-2 w-full" type="submit" disabled={!isValid}>
+                  Continue
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
